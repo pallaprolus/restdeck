@@ -22,6 +22,12 @@ pub enum SidebarSelection {
     Environment(usize),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SidebarMode {
+    Collections,
+    History,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApiRequest {
     pub name: String,
@@ -38,18 +44,38 @@ pub struct Environment {
     pub variables: String, // Newline-separated "key=value"
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HistoryItem {
+    pub timestamp: String,
+    pub url: String,
+    pub method: String,
+    pub headers: String,
+    pub params: String,
+    pub body: String,
+    pub response_status: Option<String>,
+    pub response_time: Option<String>,
+    pub response_size: Option<String>,
+    pub response_content: String,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppConfig {
     pub collections: Vec<ApiRequest>,
     pub environments: Vec<Environment>,
     pub active_env_index: Option<usize>,
+    #[serde(default)]
+    pub history: Vec<HistoryItem>,
 }
 
 pub struct App<'a> {
     pub collections: Vec<ApiRequest>,
     pub environments: Vec<Environment>,
     pub active_env_index: Option<usize>,
+    pub history: Vec<HistoryItem>,
+    
     pub sidebar_index: usize, // Flat index across requests and environments
+    pub history_index: usize, // Index inside the history list
+    pub sidebar_mode: SidebarMode,
     pub focus: Focus,
     pub request_tab: RequestTab,
     pub method_index: usize,
@@ -155,15 +181,18 @@ fn get_config_path() -> std::path::PathBuf {
 
 impl<'a> App<'a> {
     pub fn new() -> Self {
-        let (collections, environments, active_env_index) = Self::load_config().unwrap_or_else(|| {
-            (default_requests(), default_environments(), Some(0))
+        let (collections, environments, active_env_index, history) = Self::load_config().unwrap_or_else(|| {
+            (default_requests(), default_environments(), Some(0), Vec::new())
         });
 
         let mut app = Self {
             collections,
             environments,
             active_env_index,
+            history,
             sidebar_index: 0,
+            history_index: 0,
+            sidebar_mode: SidebarMode::Collections,
             focus: Focus::Sidebar,
             request_tab: RequestTab::Headers,
             method_index: 0,
@@ -172,7 +201,7 @@ impl<'a> App<'a> {
             params_textarea: TextArea::default(),
             body_textarea: TextArea::default(),
             env_textarea: TextArea::default(),
-            response_content: "Welcome to RestDeck!\n\nUse Tab / Shift-Tab to switch panels.\nUse Ctrl-E to trigger HTTP request.\nUse Ctrl-H/Ctrl-P/Ctrl-B to switch request tabs.\nUse Up/Down to navigate sidebar requests.".to_string(),
+            response_content: "Welcome to RestDeck!\n\nUse Tab / Shift-Tab to switch panels.\nUse Ctrl-E to trigger HTTP request.\nUse Ctrl-H/Ctrl-P/Ctrl-B to switch request tabs.\nUse Up/Down to navigate sidebar requests.\nUse Ctrl-Y to toggle between Collections and History.".to_string(),
             response_status: None,
             response_time: None,
             response_size: None,
@@ -184,15 +213,15 @@ impl<'a> App<'a> {
         app
     }
 
-    pub fn load_config() -> Option<(Vec<ApiRequest>, Vec<Environment>, Option<usize>)> {
+    pub fn load_config() -> Option<(Vec<ApiRequest>, Vec<Environment>, Option<usize>, Vec<HistoryItem>)> {
         let path = get_config_path();
         if path.exists() {
             if let Ok(data) = std::fs::read_to_string(&path) {
                 if let Ok(config) = serde_json::from_str::<AppConfig>(&data) {
-                    return Some((config.collections, config.environments, config.active_env_index));
+                    return Some((config.collections, config.environments, config.active_env_index, config.history));
                 }
                 if let Ok(collections) = serde_json::from_str::<Vec<ApiRequest>>(&data) {
-                    return Some((collections, default_environments(), Some(0)));
+                    return Some((collections, default_environments(), Some(0), Vec::new()));
                 }
             }
         }
@@ -210,6 +239,7 @@ impl<'a> App<'a> {
             collections: self.collections.clone(),
             environments: self.environments.clone(),
             active_env_index: self.active_env_index,
+            history: self.history.clone(),
         };
 
         if let Ok(json_str) = serde_json::to_string_pretty(&config) {
@@ -272,6 +302,11 @@ impl<'a> App<'a> {
     }
 
     pub fn save_current_request(&mut self) {
+        // Do not overwrite collections with editor contents if we are browsing history
+        if self.sidebar_mode == SidebarMode::History {
+            return;
+        }
+
         match self.get_sidebar_selection() {
             SidebarSelection::Request(idx) => {
                 if idx >= self.collections.len() {
@@ -350,6 +385,84 @@ impl<'a> App<'a> {
         interpolated
     }
 
+    pub fn add_history_item(
+        &mut self,
+        url: String,
+        method: String,
+        headers: String,
+        params: String,
+        body: String,
+        status: Option<String>,
+        time: Option<String>,
+        size: Option<String>,
+        response_content: String,
+    ) {
+        let timestamp = if let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            let secs = now.as_secs();
+            let hours = (secs / 3600) % 24;
+            let minutes = (secs / 60) % 60;
+            let seconds = secs % 60;
+            format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+        } else {
+            "00:00:00".to_string()
+        };
+
+        let item = HistoryItem {
+            timestamp,
+            url,
+            method,
+            headers,
+            params,
+            body,
+            response_status: status,
+            response_time: time,
+            response_size: size,
+            response_content,
+        };
+
+        self.history.insert(0, item);
+        if self.history.len() > 50 {
+            self.history.truncate(50);
+        }
+
+        self.save_config();
+    }
+
+    pub fn restore_history_request(&mut self) {
+        if self.history.is_empty() || self.history_index >= self.history.len() {
+            return;
+        }
+
+        let item = &self.history[self.history_index];
+
+        self.url_textarea = TextArea::new(vec![item.url.clone()]);
+        self.url_textarea.set_cursor_line_style(ratatui::style::Style::default());
+        self.url_textarea.set_cursor_style(ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::REVERSED));
+
+        if let Some(pos) = HTTP_METHODS.iter().position(|&m| m == item.method) {
+            self.method_index = pos;
+        } else {
+            self.method_index = 0;
+        }
+
+        let headers_lines: Vec<String> = item.headers.lines().map(|s| s.to_string()).collect();
+        self.headers_textarea = TextArea::new(headers_lines);
+        self.headers_textarea.set_cursor_line_style(ratatui::style::Style::default());
+
+        let params_lines: Vec<String> = item.params.lines().map(|s| s.to_string()).collect();
+        self.params_textarea = TextArea::new(params_lines);
+        self.params_textarea.set_cursor_line_style(ratatui::style::Style::default());
+
+        let body_lines: Vec<String> = item.body.lines().map(|s| s.to_string()).collect();
+        self.body_textarea = TextArea::new(body_lines);
+        self.body_textarea.set_cursor_line_style(ratatui::style::Style::default());
+
+        // Restore views
+        self.focus = Focus::RequestUrl;
+        self.sidebar_mode = SidebarMode::Collections;
+        self.save_current_request();
+    }
+
     pub fn cycle_method(&mut self) {
         self.method_index = (self.method_index + 1) % HTTP_METHODS.len();
         self.save_current_request();
@@ -359,9 +472,12 @@ impl<'a> App<'a> {
         self.save_current_request();
         self.focus = match (self.focus, forward) {
             (Focus::Sidebar, true) => {
-                match self.get_sidebar_selection() {
-                    SidebarSelection::Request(_) => Focus::RequestUrl,
-                    SidebarSelection::Environment(_) => Focus::RequestTabContent,
+                match self.sidebar_mode {
+                    SidebarMode::Collections => match self.get_sidebar_selection() {
+                        SidebarSelection::Request(_) => Focus::RequestUrl,
+                        SidebarSelection::Environment(_) => Focus::RequestTabContent,
+                    },
+                    SidebarMode::History => Focus::Response, // Go straight to Response in History Mode
                 }
             }
             (Focus::RequestUrl, true) => Focus::RequestTabContent,
@@ -376,7 +492,12 @@ impl<'a> App<'a> {
                     SidebarSelection::Environment(_) => Focus::Sidebar,
                 }
             }
-            (Focus::Response, false) => Focus::RequestTabContent,
+            (Focus::Response, false) => {
+                match self.sidebar_mode {
+                    SidebarMode::Collections => Focus::RequestTabContent,
+                    SidebarMode::History => Focus::Sidebar,
+                }
+            }
         };
     }
 }
@@ -454,9 +575,34 @@ mod tests {
         app.environments[0].name = "Staging".to_string();
         app.save_config();
         
-        let (collections, envs, _) = App::load_config().unwrap();
+        let (collections, envs, _, _) = App::load_config().unwrap();
         assert_eq!(collections[0].url, "https://example.com/config-test");
         assert_eq!(envs[0].name, "Staging");
+        
+        cleanup_test_file();
+    }
+
+    #[test]
+    fn test_history_capping() {
+        cleanup_test_file();
+        
+        let mut app = App::new();
+        assert_eq!(app.history.len(), 0);
+        
+        for i in 0..60 {
+            app.add_history_item(
+                format!("https://example.com/{}", i),
+                "GET".to_string(),
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+                None, None, None,
+                "".to_string(),
+            );
+        }
+        
+        assert_eq!(app.history.len(), 50); // Capped at 50
+        assert_eq!(app.history[0].url, "https://example.com/59"); // Most recent is first
         
         cleanup_test_file();
     }

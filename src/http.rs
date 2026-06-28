@@ -9,8 +9,24 @@ pub enum HttpResponseEvent {
         status: String,
         time_ms: u128,
         size_bytes: usize,
+        
+        // Pass back raw request details for history recording
+        raw_url: String,
+        raw_method: String,
+        raw_headers: String,
+        raw_params: String,
+        raw_body: String,
     },
-    Error(String),
+    Error {
+        err: String,
+        
+        // Pass back raw request details for history recording
+        raw_url: String,
+        raw_method: String,
+        raw_headers: String,
+        raw_params: String,
+        raw_body: String,
+    },
 }
 
 pub fn run_request(
@@ -19,6 +35,11 @@ pub fn run_request(
     headers_str: String,
     params_str: String,
     body_str: String,
+    raw_url: String,
+    raw_method: String,
+    raw_headers: String,
+    raw_params: String,
+    raw_body: String,
     tx: Sender<HttpResponseEvent>,
 ) {
     tokio::spawn(async move {
@@ -31,18 +52,23 @@ pub fn run_request(
         let client = match client {
             Ok(c) => c,
             Err(e) => {
-                let _ = tx.send(HttpResponseEvent::Error(format!("Failed to build HTTP client: {}", e))).await;
+                let _ = tx.send(HttpResponseEvent::Error {
+                    err: format!("Failed to build HTTP client: {}", e),
+                    raw_url,
+                    raw_method,
+                    raw_headers,
+                    raw_params,
+                    raw_body,
+                }).await;
                 return;
             }
         };
 
-        // Construct URL with query parameters
         let mut final_url = url.trim().to_string();
         if !final_url.starts_with("http://") && !final_url.starts_with("https://") {
             final_url = format!("https://{}", final_url);
         }
 
-        // Add query parameters
         let mut query_pairs = Vec::new();
         for line in params_str.lines() {
             let line = line.trim();
@@ -54,7 +80,6 @@ pub fn run_request(
                 let val = line[pos + 1..].trim().to_string();
                 query_pairs.push((key, val));
             } else {
-                // key without value
                 query_pairs.push((line.to_string(), "".to_string()));
             }
         }
@@ -72,7 +97,6 @@ pub fn run_request(
             req_builder = req_builder.query(&query_pairs);
         }
 
-        // Add headers
         for line in headers_str.lines() {
             let line = line.trim();
             if line.is_empty() {
@@ -91,7 +115,6 @@ pub fn run_request(
             }
         }
 
-        // Add body for non-GET methods
         if method != "GET" && !body_str.is_empty() {
             req_builder = req_builder.body(body_str);
         }
@@ -104,12 +127,10 @@ pub fn run_request(
                 let duration = start_time.elapsed().as_millis();
                 let status_str = format!("{} {}", response.status().as_u16(), response.status().canonical_reason().unwrap_or(""));
                 
-                // Read response body as text
                 match response.text().await {
                     Ok(text) => {
                         let size = text.len();
                         
-                        // Attempt to pretty-print if it's JSON
                         let formatted_text = if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&text) {
                             serde_json::to_string_pretty(&json_val).unwrap_or(text)
                         } else {
@@ -121,15 +142,34 @@ pub fn run_request(
                             status: status_str,
                             time_ms: duration,
                             size_bytes: size,
+                            raw_url,
+                            raw_method,
+                            raw_headers,
+                            raw_params,
+                            raw_body,
                         }).await;
                     }
                     Err(e) => {
-                        let _ = tx.send(HttpResponseEvent::Error(format!("Failed to read response body: {}", e))).await;
+                        let _ = tx.send(HttpResponseEvent::Error {
+                            err: format!("Failed to read response body: {}", e),
+                            raw_url,
+                            raw_method,
+                            raw_headers,
+                            raw_params,
+                            raw_body,
+                        }).await;
                     }
                 }
             }
             Err(e) => {
-                let _ = tx.send(HttpResponseEvent::Error(format!("Network request failed:\n{}", e))).await;
+                let _ = tx.send(HttpResponseEvent::Error {
+                    err: format!("Network request failed:\n{}", e),
+                    raw_url,
+                    raw_method,
+                    raw_headers,
+                    raw_params,
+                    raw_body,
+                }).await;
             }
         }
     });
