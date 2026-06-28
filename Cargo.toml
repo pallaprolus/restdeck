@@ -2,6 +2,12 @@
 name = "restdeck"
 version = "0.1.0"
 edition = "2024"
+description = "A lightweight, keyboard-driven REST API client TUI built in Rust using Ratatui and Tokio."
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/pallaprolus/restdeck"
+keywords = ["tui", "ratatui", "api-client", "cli", "rest"]
+categories = ["command-line-utilities", "development-tools::debugging"]
 
 [dependencies]
 ratatui = "0.30.1"
