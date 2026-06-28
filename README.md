@@ -60,11 +60,21 @@ RestDeck saves configuration to disk in JSON format automatically. It resolves p
 Make sure you have Rust and Cargo installed:
 *   [Install Rust](https://www.rust-lang.org/tools/install)
 
-### Building from Source
+### 📦 Global Installation (crates.io)
+You can install RestDeck globally via crates.io:
+```bash
+cargo install restdeck
+```
+Once installed, run it anywhere in your terminal:
+```bash
+restdeck
+```
+
+### 🛠️ Building from Source
 
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/<your-username>/restdeck.git
+    git clone https://github.com/pallaprolus/restdeck.git
     cd restdeck
     ```
 2.  Build the binary:
