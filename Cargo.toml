@@ -1,6 +1,6 @@
 [package]
 name = "restdeck"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "A lightweight, keyboard-driven REST API client TUI built in Rust using Ratatui and Tokio."
 license = "MIT"
