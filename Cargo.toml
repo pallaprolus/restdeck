@@ -17,3 +17,4 @@ tokio = { version = "1.43.0", features = ["full"] }
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.137"
 tui-textarea = { version = "0.4.0", features = ["ratatui", "crossterm"] }
+futures-util = "0.3"
