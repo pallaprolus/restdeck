@@ -123,7 +123,7 @@ fn default_environments() -> Vec<Environment> {
     ]
 }
 
-fn default_requests() -> Vec<ApiRequest> {
+pub fn default_requests() -> Vec<ApiRequest> {
     vec![
         ApiRequest {
             name: "Get User Info".to_string(),
@@ -238,7 +238,10 @@ impl<'a> App<'a> {
     pub fn load_config() -> Option<LoadedConfig> {
         let path = get_config_path();
         if let Ok(data) = std::fs::read_to_string(&path) {
-            if let Ok(config) = serde_json::from_str::<AppConfig>(&data) {
+            if let Ok(mut config) = serde_json::from_str::<AppConfig>(&data) {
+                if config.collections.is_empty() {
+                    config.collections = default_requests();
+                }
                 return Some((
                     config.collections,
                     config.environments,
@@ -246,7 +249,10 @@ impl<'a> App<'a> {
                     config.history,
                 ));
             }
-            if let Ok(collections) = serde_json::from_str::<Vec<ApiRequest>>(&data) {
+            if let Ok(mut collections) = serde_json::from_str::<Vec<ApiRequest>>(&data) {
+                if collections.is_empty() {
+                    collections = default_requests();
+                }
                 return Some((collections, default_environments(), Some(0), Vec::new()));
             }
         }
@@ -268,9 +274,20 @@ impl<'a> App<'a> {
         };
 
         if let Ok(json_str) = serde_json::to_string_pretty(&config) {
-            let _ = std::fs::write(&path, json_str);
-            self.is_dirty = false;
-            self.last_edit = None;
+            let tmp_path = path.with_extension("tmp");
+            let write_success = (|| -> std::io::Result<()> {
+                use std::io::Write;
+                let mut file = std::fs::File::create(&tmp_path)?;
+                file.write_all(json_str.as_bytes())?;
+                file.sync_all()?;
+                std::fs::rename(&tmp_path, &path)?;
+                Ok(())
+            })();
+
+            if write_success.is_ok() {
+                self.is_dirty = false;
+                self.last_edit = None;
+            }
         }
     }
 
@@ -382,7 +399,12 @@ impl<'a> App<'a> {
                 if idx >= self.collections.len() {
                     return;
                 }
-                let url = self.url_textarea.lines()[0].trim().to_string();
+                let url = self
+                    .url_textarea
+                    .lines()
+                    .first()
+                    .map(|l| l.trim().to_string())
+                    .unwrap_or_default();
                 let method = HTTP_METHODS[self.method_index].to_string();
                 let headers = self.headers_textarea.lines().join("\n");
                 let params = self.params_textarea.lines().join("\n");
@@ -753,5 +775,60 @@ mod tests {
         );
 
         cleanup_test_file();
+    }
+}
+
+#[cfg(test)]
+mod empty_tests {
+    use super::*;
+
+    #[test]
+    fn test_load_empty_collections_fallback() {
+        let thread_name = std::thread::current().name().unwrap_or("test").to_string();
+        let sanitized_name = thread_name.replace("::", "_");
+        let pid = std::process::id();
+        let path =
+            std::env::temp_dir().join(format!("restdeck_test_{}_{}.json", pid, sanitized_name));
+
+        let empty_config =
+            r#"{"collections": [], "environments": [], "active_env_index": null, "history": []}"#;
+        std::fs::write(&path, empty_config).unwrap();
+
+        // When load_config uses get_config_path in test, it reads this path.
+        let loaded = App::load_config().unwrap();
+        assert!(!loaded.0.is_empty(), "Collections should fallback");
+        assert!(
+            loaded.1.is_empty(),
+            "Deleted environments should stay deleted"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+}
+
+#[cfg(test)]
+mod atomic_save_tests {
+    use super::*;
+
+    #[test]
+    fn test_atomic_save() {
+        let mut app = App::new();
+        let path = get_config_path();
+        let tmp_path = path.with_extension("tmp");
+
+        app.collections[0].name = "Atomic Test".to_string();
+        app.save_config(); // Save 1
+
+        app.collections[0].name = "Atomic Test 2".to_string();
+        app.save_config(); // Save 2
+
+        assert!(!tmp_path.exists(), "Temp file should not exist after save");
+
+        // Should parse successfully
+        let data = std::fs::read_to_string(&path).unwrap();
+        let config: AppConfig = serde_json::from_str(&data).expect("Should be valid JSON");
+        assert_eq!(config.collections[0].name, "Atomic Test 2");
+
+        let _ = std::fs::remove_file(&path);
     }
 }

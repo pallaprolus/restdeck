@@ -106,20 +106,7 @@ pub fn run_request(
             final_url = format!("https://{}", final_url);
         }
 
-        let mut query_pairs = Vec::new();
-        for line in req.params.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            if let Some(pos) = line.find('=') {
-                let key = line[..pos].trim().to_string();
-                let val = line[pos + 1..].trim().to_string();
-                query_pairs.push((key, val));
-            } else {
-                query_pairs.push((line.to_string(), "".to_string()));
-            }
-        }
+        let query_pairs = parse_params(&req.params);
 
         let mut req_builder = match req.method.as_str() {
             "GET" => client.get(&final_url),
@@ -250,5 +237,48 @@ mod tests {
         let headers_str = "  \n\n  Accept: */*  \n   \n";
         let headers = parse_headers(headers_str).expect("Empty lines should be ignored");
         assert_eq!(headers.get("Accept").unwrap(), "*/*");
+    }
+}
+
+pub(crate) fn parse_params(s: &str) -> Vec<(String, String)> {
+    let mut query_pairs = Vec::new();
+    for line in s.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Some(pos) = line.find('=') {
+            let key = line[..pos].trim().to_string();
+            let val = line[pos + 1..].trim().to_string();
+            query_pairs.push((key, val));
+        } else {
+            query_pairs.push((line.to_string(), "".to_string()));
+        }
+    }
+    query_pairs
+}
+
+#[cfg(test)]
+mod param_tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_params() {
+        let input = "
+        
+  key1=value1  
+key2 = value2
+key3=value=with=equals
+key_no_value
+";
+        let params = parse_params(input);
+        assert_eq!(params.len(), 4);
+        assert_eq!(params[0], ("key1".to_string(), "value1".to_string()));
+        assert_eq!(params[1], ("key2".to_string(), "value2".to_string()));
+        assert_eq!(
+            params[2],
+            ("key3".to_string(), "value=with=equals".to_string())
+        );
+        assert_eq!(params[3], ("key_no_value".to_string(), "".to_string()));
     }
 }
