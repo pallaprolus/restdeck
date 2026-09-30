@@ -322,24 +322,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                     };
 
                     // Format URL / path
-                    let url_str = if item.url.len() > 15 {
-                        let path_part = item
-                            .url
-                            .find("//")
-                            .map(|pos| &item.url[pos + 2..])
-                            .unwrap_or(&item.url);
-                        let sub_path = path_part
-                            .find('/')
-                            .map(|pos| &path_part[pos..])
-                            .unwrap_or(path_part);
-                        if sub_path.len() > 12 {
-                            format!("..{}", &sub_path[sub_path.len() - 10..])
-                        } else {
-                            sub_path.to_string()
-                        }
-                    } else {
-                        item.url.clone()
-                    };
+                    let url_str = shorten_history_url(&item.url);
 
                     let url_span = if is_selected {
                         Span::styled(
@@ -891,4 +874,40 @@ pub fn render(f: &mut Frame, app: &mut App) {
     ]);
 
     f.render_widget(Paragraph::new(status_line), status_area);
+}
+
+pub(crate) fn shorten_history_url(url: &str) -> String {
+    if url.chars().count() > 15 {
+        let path_part = url
+            .find("//")
+            .map(|pos| &url[pos + 2..])
+            .unwrap_or(url);
+        let sub_path = path_part
+            .find('/')
+            .map(|pos| &path_part[pos..])
+            .unwrap_or(path_part);
+        
+        let chars_count = sub_path.chars().count();
+        if chars_count > 12 {
+            let start_idx = chars_count.saturating_sub(10);
+            let suffix: String = sub_path.chars().skip(start_idx).collect();
+            format!("..{}", suffix)
+        } else {
+            sub_path.to_string()
+        }
+    } else {
+        url.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_shorten_history_url() {
+        assert_eq!(shorten_history_url("http://ex.com"), "http://ex.com");
+        assert_eq!(shorten_history_url("https://example.com/api/v1/users"), "..i/v1/users");
+        assert_eq!(shorten_history_url("https://example.com/ünïcödé/пример/路径"), "../пример/路径");
+    }
 }
