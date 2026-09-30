@@ -123,7 +123,7 @@ fn default_environments() -> Vec<Environment> {
     ]
 }
 
-fn default_requests() -> Vec<ApiRequest> {
+pub fn default_requests() -> Vec<ApiRequest> {
     vec![
         ApiRequest {
             name: "Get User Info".to_string(),
@@ -238,7 +238,13 @@ impl<'a> App<'a> {
     pub fn load_config() -> Option<LoadedConfig> {
         let path = get_config_path();
         if let Ok(data) = std::fs::read_to_string(&path) {
-            if let Ok(config) = serde_json::from_str::<AppConfig>(&data) {
+            if let Ok(mut config) = serde_json::from_str::<AppConfig>(&data) {
+                if config.collections.is_empty() {
+                    config.collections = default_requests();
+                }
+                if config.environments.is_empty() {
+                    config.environments = default_environments();
+                }
                 return Some((
                     config.collections,
                     config.environments,
@@ -246,7 +252,10 @@ impl<'a> App<'a> {
                     config.history,
                 ));
             }
-            if let Ok(collections) = serde_json::from_str::<Vec<ApiRequest>>(&data) {
+            if let Ok(mut collections) = serde_json::from_str::<Vec<ApiRequest>>(&data) {
+                if collections.is_empty() {
+                    collections = default_requests();
+                }
                 return Some((collections, default_environments(), Some(0), Vec::new()));
             }
         }
@@ -382,7 +391,7 @@ impl<'a> App<'a> {
                 if idx >= self.collections.len() {
                     return;
                 }
-                let url = self.url_textarea.lines()[0].trim().to_string();
+                let url = self.url_textarea.lines().first().map(|l| l.trim().to_string()).unwrap_or_default();
                 let method = HTTP_METHODS[self.method_index].to_string();
                 let headers = self.headers_textarea.lines().join("\n");
                 let params = self.params_textarea.lines().join("\n");
@@ -753,5 +762,28 @@ mod tests {
         );
 
         cleanup_test_file();
+    }
+}
+
+#[cfg(test)]
+mod empty_tests {
+    use super::*;
+
+    #[test]
+    fn test_load_empty_collections_fallback() {
+        let thread_name = std::thread::current().name().unwrap_or("test").to_string();
+        let sanitized_name = thread_name.replace("::", "_");
+        let pid = std::process::id();
+        let path = std::env::temp_dir().join(format!("restdeck_test_{}_{}.json", pid, sanitized_name));
+        
+        let empty_config = r#"{"collections": [], "environments": [], "active_env_index": null, "history": []}"#;
+        std::fs::write(&path, empty_config).unwrap();
+
+        // When load_config uses get_config_path in test, it reads this path.
+        let loaded = App::load_config().unwrap();
+        assert!(!loaded.0.is_empty(), "Collections should fallback");
+        assert!(!loaded.1.is_empty(), "Environments should fallback");
+        
+        let _ = std::fs::remove_file(&path);
     }
 }

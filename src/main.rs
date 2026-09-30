@@ -167,8 +167,8 @@ fn handle_key_event(
     if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('e') {
         app.save_current_request();
         let raw_req = match app.get_sidebar_selection() {
-            SidebarSelection::Request(idx) => app.collections[idx].clone(),
-            _ => app.collections[0].clone(),
+            SidebarSelection::Request(idx) => app.collections.get(idx).cloned().unwrap_or_else(|| crate::app::default_requests()[0].clone()),
+            _ => app.collections.first().cloned().unwrap_or_else(|| crate::app::default_requests()[0].clone()),
         };
 
         let req = app.get_interpolated_request();
@@ -210,26 +210,34 @@ fn handle_key_event(
                 KeyCode::Down | KeyCode::Char('j') => {
                     app.flush_save();
                     let total = app.total_sidebar_items();
-                    let next = (app.sidebar_index + 1) % total;
-                    app.load_sidebar_selection(next);
+                    if total > 0 {
+                        let next = (app.sidebar_index + 1) % total;
+                        app.load_sidebar_selection(next);
+                    }
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
                     app.flush_save();
                     let total = app.total_sidebar_items();
-                    let prev = if app.sidebar_index == 0 {
-                        total - 1
-                    } else {
-                        app.sidebar_index - 1
-                    };
-                    app.load_sidebar_selection(prev);
-                }
-                KeyCode::Enter => match app.get_sidebar_selection() {
-                    SidebarSelection::Request(_) => {
-                        app.focus = Focus::RequestUrl;
+                    if total > 0 {
+                        let prev = if app.sidebar_index == 0 {
+                            total - 1
+                        } else {
+                            app.sidebar_index - 1
+                        };
+                        app.load_sidebar_selection(prev);
                     }
-                    SidebarSelection::Environment(idx) => {
+                }
+                KeyCode::Enter => {
+                    if app.total_sidebar_items() > 0 {
+                        match app.get_sidebar_selection() {
+                            SidebarSelection::Request(_) => {
+                                app.focus = Focus::RequestUrl;
+                            }
+                            SidebarSelection::Environment(idx) => {
                         app.active_env_index = Some(idx);
                         app.save_config();
+                    }
+                        }
                     }
                 },
                 _ => {}
