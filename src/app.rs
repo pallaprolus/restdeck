@@ -277,9 +277,20 @@ impl<'a> App<'a> {
         };
 
         if let Ok(json_str) = serde_json::to_string_pretty(&config) {
-            let _ = std::fs::write(&path, json_str);
-            self.is_dirty = false;
-            self.last_edit = None;
+            let tmp_path = path.with_extension("tmp");
+            let write_success = (|| -> std::io::Result<()> {
+                use std::io::Write;
+                let mut file = std::fs::File::create(&tmp_path)?;
+                file.write_all(json_str.as_bytes())?;
+                file.sync_all()?;
+                std::fs::rename(&tmp_path, &path)?;
+                Ok(())
+            })();
+            
+            if write_success.is_ok() {
+                self.is_dirty = false;
+                self.last_edit = None;
+            }
         }
     }
 
@@ -783,6 +794,35 @@ mod empty_tests {
         let loaded = App::load_config().unwrap();
         assert!(!loaded.0.is_empty(), "Collections should fallback");
         assert!(!loaded.1.is_empty(), "Environments should fallback");
+        
+        let _ = std::fs::remove_file(&path);
+    }
+}
+
+#[cfg(test)]
+
+#[cfg(test)]
+mod atomic_save_tests {
+    use super::*;
+
+    #[test]
+    fn test_atomic_save() {
+        let mut app = App::new();
+        let path = get_config_path();
+        let tmp_path = path.with_extension("tmp");
+        
+        app.collections[0].name = "Atomic Test".to_string();
+        app.save_config(); // Save 1
+        
+        app.collections[0].name = "Atomic Test 2".to_string();
+        app.save_config(); // Save 2
+
+        assert!(!tmp_path.exists(), "Temp file should not exist after save");
+        
+        // Should parse successfully
+        let data = std::fs::read_to_string(&path).unwrap();
+        let config: AppConfig = serde_json::from_str(&data).expect("Should be valid JSON");
+        assert_eq!(config.collections[0].name, "Atomic Test 2");
         
         let _ = std::fs::remove_file(&path);
     }
