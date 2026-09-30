@@ -1,5 +1,4 @@
 [package]
-exclude = [".github/", "assets/"]
 name = "restdeck"
 version = "0.1.3"
 edition = "2024"
@@ -9,6 +8,7 @@ readme = "README.md"
 repository = "https://github.com/pallaprolus/restdeck"
 keywords = ["tui", "ratatui", "api-client", "cli", "rest"]
 categories = ["command-line-utilities", "development-tools::debugging"]
+exclude = [".github/", "assets/"]
 
 [dependencies]
 ratatui = "0.30.1"

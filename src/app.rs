@@ -242,9 +242,6 @@ impl<'a> App<'a> {
                 if config.collections.is_empty() {
                     config.collections = default_requests();
                 }
-                if config.environments.is_empty() {
-                    config.environments = default_environments();
-                }
                 return Some((
                     config.collections,
                     config.environments,
@@ -800,7 +797,10 @@ mod empty_tests {
         // When load_config uses get_config_path in test, it reads this path.
         let loaded = App::load_config().unwrap();
         assert!(!loaded.0.is_empty(), "Collections should fallback");
-        assert!(!loaded.1.is_empty(), "Environments should fallback");
+        assert!(
+            loaded.1.is_empty(),
+            "Deleted environments should stay deleted"
+        );
 
         let _ = std::fs::remove_file(&path);
     }
