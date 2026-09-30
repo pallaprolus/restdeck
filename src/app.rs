@@ -800,8 +800,6 @@ mod empty_tests {
 }
 
 #[cfg(test)]
-
-#[cfg(test)]
 mod atomic_save_tests {
     use super::*;
 

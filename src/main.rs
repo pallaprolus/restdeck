@@ -227,16 +227,14 @@ fn handle_key_event(
                         app.load_sidebar_selection(prev);
                     }
                 }
-                KeyCode::Enter => {
-                    if app.total_sidebar_items() > 0 {
-                        match app.get_sidebar_selection() {
-                            SidebarSelection::Request(_) => {
-                                app.focus = Focus::RequestUrl;
-                            }
-                            SidebarSelection::Environment(idx) => {
-                        app.active_env_index = Some(idx);
-                        app.save_config();
-                    }
+                KeyCode::Enter if app.total_sidebar_items() > 0 => {
+                    match app.get_sidebar_selection() {
+                        SidebarSelection::Request(_) => {
+                            app.focus = Focus::RequestUrl;
+                        }
+                        SidebarSelection::Environment(idx) => {
+                            app.active_env_index = Some(idx);
+                            app.save_config();
                         }
                     }
                 },
@@ -290,8 +288,13 @@ fn handle_key_event(
             },
         },
         Focus::RequestUrl => {
-            app.url_textarea.input(key);
-            app.sync_current_request();
+            let is_newline = key.code == KeyCode::Enter
+                || (key.modifiers == KeyModifiers::CONTROL && (key.code == KeyCode::Char('j') || key.code == KeyCode::Char('m')));
+            
+            if !is_newline {
+                app.url_textarea.input(key);
+                app.sync_current_request();
+            }
         }
         Focus::RequestTabContent => {
             match app.sidebar_mode {
