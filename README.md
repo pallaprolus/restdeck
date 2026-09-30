@@ -1,9 +1,9 @@
 # 🎛️ RestDeck
 [![crates.io](https://img.shields.io/crates/v/restdeck.svg)](https://crates.io/crates/restdeck)
 
-RestDeck is a lightweight, keyboard-driven **REST API client TUI** (Terminal User Interface) built in Rust using **Ratatui** and **Tokio**. It brings the features of Postman and Insomnia directly into your terminal, giving you near-instant startup, negligible memory overhead, and fluid visual feedback.
+RestDeck is a lightweight, keyboard-driven **REST API client TUI** (Terminal User Interface) built in Rust using **Ratatui** and **Tokio**. Build and send HTTP requests, switch environments, and re-run past requests from history without leaving the terminal; collections live in a plain JSON file you can commit alongside your code.
 
-![RestDeck TUI Mockup](https://raw.githubusercontent.com/pallaprolus/restdeck/master/assets/mockup.png)
+![RestDeck showing a request and its JSON response](https://raw.githubusercontent.com/pallaprolus/restdeck/master/assets/screenshot.png)
 
 ---
 
