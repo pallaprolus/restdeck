@@ -429,7 +429,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                             .border_style(url_border_style)
                             .title(" URL "),
                     );
-                    f.render_widget(app.url_textarea.widget(), url_input_area);
+                    f.render_widget(&app.url_textarea, url_input_area);
 
                     // Tabs Header
                     let is_tab_content_focused = app.focus == Focus::RequestTabContent;
@@ -479,7 +479,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                                     .borders(Borders::ALL)
                                     .border_style(tab_content_border_style),
                             );
-                            f.render_widget(app.headers_textarea.widget(), tab_content_area);
+                            f.render_widget(&app.headers_textarea, tab_content_area);
                         }
                         RequestTab::Params => {
                             app.params_textarea.set_block(
@@ -488,7 +488,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                                     .borders(Borders::ALL)
                                     .border_style(tab_content_border_style),
                             );
-                            f.render_widget(app.params_textarea.widget(), tab_content_area);
+                            f.render_widget(&app.params_textarea, tab_content_area);
                         }
                         RequestTab::Body => {
                             app.body_textarea.set_block(
@@ -497,7 +497,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                                     .borders(Borders::ALL)
                                     .border_style(tab_content_border_style),
                             );
-                            f.render_widget(app.body_textarea.widget(), tab_content_area);
+                            f.render_widget(&app.body_textarea, tab_content_area);
                         }
                     }
                 }
@@ -515,7 +515,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                             .borders(Borders::ALL)
                             .border_style(env_border_style),
                     );
-                    f.render_widget(app.env_textarea.widget(), request_area);
+                    f.render_widget(&app.env_textarea, request_area);
                 }
             }
         }
@@ -566,7 +566,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                     .border_style(url_border_style)
                     .title(" URL (History - Press Enter to Restore) "),
             );
-            f.render_widget(app.url_textarea.widget(), url_input_area);
+            f.render_widget(&app.url_textarea, url_input_area);
 
             // Tab headers
             let is_tab_content_focused = app.focus == Focus::RequestTabContent;
@@ -616,7 +616,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                             .borders(Borders::ALL)
                             .border_style(tab_content_border_style),
                     );
-                    f.render_widget(app.headers_textarea.widget(), tab_content_area);
+                    f.render_widget(&app.headers_textarea, tab_content_area);
                 }
                 RequestTab::Params => {
                     app.params_textarea.set_block(
@@ -625,7 +625,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                             .borders(Borders::ALL)
                             .border_style(tab_content_border_style),
                     );
-                    f.render_widget(app.params_textarea.widget(), tab_content_area);
+                    f.render_widget(&app.params_textarea, tab_content_area);
                 }
                 RequestTab::Body => {
                     app.body_textarea.set_block(
@@ -634,7 +634,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                             .borders(Borders::ALL)
                             .border_style(tab_content_border_style),
                     );
-                    f.render_widget(app.body_textarea.widget(), tab_content_area);
+                    f.render_widget(&app.body_textarea, tab_content_area);
                 }
             }
         }

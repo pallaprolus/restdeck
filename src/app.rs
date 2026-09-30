@@ -1,5 +1,5 @@
+use ratatui_textarea::TextArea;
 use serde::{Deserialize, Serialize};
-use tui_textarea::TextArea;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Focus {
