@@ -4,7 +4,7 @@ mod ui;
 
 use app::{App, Focus, HTTP_METHODS, RequestTab, SidebarMode, SidebarSelection};
 use http::HttpResponseEvent;
-use tui_textarea::TextArea;
+use ratatui_textarea::TextArea;
 
 use crossterm::{
     cursor::Show,
