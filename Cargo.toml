@@ -1,4 +1,5 @@
 [package]
+exclude = [".github/", "assets/"]
 name = "restdeck"
 version = "0.1.3"
 edition = "2024"

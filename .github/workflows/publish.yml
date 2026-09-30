@@ -20,7 +20,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run Tests (Verify Health)
-        run: cargo test
+        run: cargo test --locked
 
       - name: Publish Crate to Crates.io
         env:
