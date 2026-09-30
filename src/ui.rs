@@ -1,26 +1,36 @@
-use crate::app::{App, Focus, RequestTab, SidebarMode, SidebarSelection, HTTP_METHODS};
+use crate::app::{App, Focus, HTTP_METHODS, RequestTab, SidebarMode, SidebarSelection};
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
     widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
-    Frame,
 };
 
 fn get_method_style(method: &str) -> Style {
     match method {
-        "GET" => Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
-        "POST" => Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD),
-        "PUT" => Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        "GET" => Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD),
+        "POST" => Style::default()
+            .fg(Color::LightMagenta)
+            .add_modifier(Modifier::BOLD),
+        "PUT" => Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
         "DELETE" => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-        "PATCH" => Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        "PATCH" => Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
         _ => Style::default().fg(Color::White),
     }
 }
 
 fn get_border_style(focused: bool) -> Style {
     if focused {
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::DarkGray)
     }
@@ -29,10 +39,7 @@ fn get_border_style(focused: bool) -> Style {
 pub fn render(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0),
-            Constraint::Length(1),
-        ])
+        .constraints([Constraint::Min(0), Constraint::Length(1)])
         .split(f.area());
 
     let main_area = chunks[0];
@@ -67,13 +74,19 @@ pub fn render(f: &mut Frame, app: &mut App) {
 
     // Render Sidebar Tabs
     let collections_style = if app.sidebar_mode == SidebarMode::Collections {
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED)
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
+            .add_modifier(Modifier::UNDERLINED)
     } else {
         Style::default().fg(Color::DarkGray)
     };
 
     let history_style = if app.sidebar_mode == SidebarMode::History {
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED)
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
+            .add_modifier(Modifier::UNDERLINED)
     } else {
         Style::default().fg(Color::DarkGray)
     };
@@ -96,10 +109,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
         SidebarMode::Collections => {
             let inner_sidebar_layout = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Percentage(65),
-                    Constraint::Percentage(35),
-                ])
+                .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
                 .split(sidebar_content_area);
 
             let collections_sub_area = inner_sidebar_layout[0];
@@ -108,7 +118,8 @@ pub fn render(f: &mut Frame, app: &mut App) {
             let selection = app.get_sidebar_selection();
 
             // Render Collections
-            let is_collections_focused = app.focus == Focus::Sidebar && matches!(selection, SidebarSelection::Request(_));
+            let is_collections_focused =
+                app.focus == Focus::Sidebar && matches!(selection, SidebarSelection::Request(_));
             let collections_border_style = get_border_style(is_collections_focused);
 
             let collections_items: Vec<ListItem> = app
@@ -117,17 +128,55 @@ pub fn render(f: &mut Frame, app: &mut App) {
                 .enumerate()
                 .map(|(idx, req)| {
                     let method_span = match req.method.as_str() {
-                        "GET" => Span::styled(" GET ", Style::default().bg(Color::Green).fg(Color::Black).add_modifier(Modifier::BOLD)),
-                        "POST" => Span::styled(" POST", Style::default().bg(Color::LightMagenta).fg(Color::Black).add_modifier(Modifier::BOLD)),
-                        "PUT" => Span::styled(" PUT ", Style::default().bg(Color::Yellow).fg(Color::Black).add_modifier(Modifier::BOLD)),
-                        "DELETE" => Span::styled(" DEL ", Style::default().bg(Color::Red).fg(Color::Black).add_modifier(Modifier::BOLD)),
-                        "PATCH" => Span::styled(" PAT ", Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD)),
-                        _ => Span::styled(" REQ ", Style::default().bg(Color::White).fg(Color::Black)),
+                        "GET" => Span::styled(
+                            " GET ",
+                            Style::default()
+                                .bg(Color::Green)
+                                .fg(Color::Black)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        "POST" => Span::styled(
+                            " POST",
+                            Style::default()
+                                .bg(Color::LightMagenta)
+                                .fg(Color::Black)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        "PUT" => Span::styled(
+                            " PUT ",
+                            Style::default()
+                                .bg(Color::Yellow)
+                                .fg(Color::Black)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        "DELETE" => Span::styled(
+                            " DEL ",
+                            Style::default()
+                                .bg(Color::Red)
+                                .fg(Color::Black)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        "PATCH" => Span::styled(
+                            " PAT ",
+                            Style::default()
+                                .bg(Color::Cyan)
+                                .fg(Color::Black)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        _ => Span::styled(
+                            " REQ ",
+                            Style::default().bg(Color::White).fg(Color::Black),
+                        ),
                     };
 
                     let is_selected = matches!(selection, SidebarSelection::Request(i) if i == idx);
                     let name_span = if is_selected {
-                        Span::styled(format!("  {}", req.name), Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+                        Span::styled(
+                            format!("  {}", req.name),
+                            Style::default()
+                                .fg(Color::Cyan)
+                                .add_modifier(Modifier::BOLD),
+                        )
                     } else {
                         Span::styled(format!("  {}", req.name), Style::default().fg(Color::White))
                     };
@@ -143,17 +192,17 @@ pub fn render(f: &mut Frame, app: &mut App) {
                 })
                 .collect();
 
-            let collections_list = List::new(collections_items)
-                .block(
-                    Block::default()
-                        .title(" 📁 Collections ")
-                        .borders(Borders::ALL)
-                        .border_style(collections_border_style),
-                );
+            let collections_list = List::new(collections_items).block(
+                Block::default()
+                    .title(" 📁 Collections ")
+                    .borders(Borders::ALL)
+                    .border_style(collections_border_style),
+            );
             f.render_widget(collections_list, collections_sub_area);
 
             // Render Environments
-            let is_envs_focused = app.focus == Focus::Sidebar && matches!(selection, SidebarSelection::Environment(_));
+            let is_envs_focused = app.focus == Focus::Sidebar
+                && matches!(selection, SidebarSelection::Environment(_));
             let envs_border_style = get_border_style(is_envs_focused);
 
             let envs_items: Vec<ListItem> = app
@@ -162,16 +211,27 @@ pub fn render(f: &mut Frame, app: &mut App) {
                 .enumerate()
                 .map(|(idx, env)| {
                     let is_active = app.active_env_index == Some(idx);
-                    let is_selected = matches!(selection, SidebarSelection::Environment(i) if i == idx);
+                    let is_selected =
+                        matches!(selection, SidebarSelection::Environment(i) if i == idx);
 
                     let active_span = if is_active {
-                        Span::styled("● ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+                        Span::styled(
+                            "● ",
+                            Style::default()
+                                .fg(Color::Green)
+                                .add_modifier(Modifier::BOLD),
+                        )
                     } else {
                         Span::styled("○ ", Style::default().fg(Color::DarkGray))
                     };
 
                     let name_span = if is_selected {
-                        Span::styled(env.name.clone(), Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+                        Span::styled(
+                            env.name.clone(),
+                            Style::default()
+                                .fg(Color::Cyan)
+                                .add_modifier(Modifier::BOLD),
+                        )
                     } else {
                         Span::styled(env.name.clone(), Style::default().fg(Color::White))
                     };
@@ -187,13 +247,12 @@ pub fn render(f: &mut Frame, app: &mut App) {
                 })
                 .collect();
 
-            let envs_list = List::new(envs_items)
-                .block(
-                    Block::default()
-                        .title(" ⚙ Environments ")
-                        .borders(Borders::ALL)
-                        .border_style(envs_border_style),
-                );
+            let envs_list = List::new(envs_items).block(
+                Block::default()
+                    .title(" ⚙ Environments ")
+                    .borders(Borders::ALL)
+                    .border_style(envs_border_style),
+            );
             f.render_widget(envs_list, environments_sub_area);
         }
         SidebarMode::History => {
@@ -209,40 +268,94 @@ pub fn render(f: &mut Frame, app: &mut App) {
                     let is_selected = idx == app.history_index;
 
                     let status_span = match &item.response_status {
-                        Some(status) if status.starts_with('2') => {
-                            Span::styled(format!(" {} ", &status[..3]), Style::default().bg(Color::Green).fg(Color::Black).add_modifier(Modifier::BOLD))
-                        }
+                        Some(status) if status.starts_with('2') => Span::styled(
+                            format!(" {} ", &status[..3]),
+                            Style::default()
+                                .bg(Color::Green)
+                                .fg(Color::Black)
+                                .add_modifier(Modifier::BOLD),
+                        ),
                         Some(status) => {
-                            let display_status = if status.len() >= 3 { &status[..3] } else { "ERR" };
-                            Span::styled(format!(" {} ", display_status), Style::default().bg(Color::Red).fg(Color::Black).add_modifier(Modifier::BOLD))
+                            let display_status = if status.len() >= 3 {
+                                &status[..3]
+                            } else {
+                                "ERR"
+                            };
+                            Span::styled(
+                                format!(" {} ", display_status),
+                                Style::default()
+                                    .bg(Color::Red)
+                                    .fg(Color::Black)
+                                    .add_modifier(Modifier::BOLD),
+                            )
                         }
-                        None => Span::styled(" --- ", Style::default().bg(Color::DarkGray).fg(Color::Black)),
+                        None => Span::styled(
+                            " --- ",
+                            Style::default().bg(Color::DarkGray).fg(Color::Black),
+                        ),
                     };
 
                     let method_span = match item.method.as_str() {
-                        "GET" => Span::styled(" GET", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-                        "POST" => Span::styled(" POST", Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD)),
-                        "PUT" => Span::styled(" PUT", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-                        "DELETE" => Span::styled(" DEL", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                        "GET" => Span::styled(
+                            " GET",
+                            Style::default()
+                                .fg(Color::Green)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        "POST" => Span::styled(
+                            " POST",
+                            Style::default()
+                                .fg(Color::LightMagenta)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        "PUT" => Span::styled(
+                            " PUT",
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        "DELETE" => Span::styled(
+                            " DEL",
+                            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                        ),
                         _ => Span::styled(" REQ", Style::default().fg(Color::White)),
                     };
 
                     // Format URL / path
                     let url_str = if item.url.len() > 15 {
-                        let path_part = item.url.find("//").map(|pos| &item.url[pos+2..]).unwrap_or(&item.url);
-                        let sub_path = path_part.find('/').map(|pos| &path_part[pos..]).unwrap_or(path_part);
-                        if sub_path.len() > 12 { format!("..{}", &sub_path[sub_path.len()-10..]) } else { sub_path.to_string() }
+                        let path_part = item
+                            .url
+                            .find("//")
+                            .map(|pos| &item.url[pos + 2..])
+                            .unwrap_or(&item.url);
+                        let sub_path = path_part
+                            .find('/')
+                            .map(|pos| &path_part[pos..])
+                            .unwrap_or(path_part);
+                        if sub_path.len() > 12 {
+                            format!("..{}", &sub_path[sub_path.len() - 10..])
+                        } else {
+                            sub_path.to_string()
+                        }
                     } else {
                         item.url.clone()
                     };
 
                     let url_span = if is_selected {
-                        Span::styled(format!(" {}", url_str), Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+                        Span::styled(
+                            format!(" {}", url_str),
+                            Style::default()
+                                .fg(Color::Cyan)
+                                .add_modifier(Modifier::BOLD),
+                        )
                     } else {
                         Span::styled(format!(" {}", url_str), Style::default().fg(Color::White))
                     };
 
-                    let time_span = Span::styled(format!(" ({})", item.timestamp), Style::default().fg(Color::DarkGray));
+                    let time_span = Span::styled(
+                        format!(" ({})", item.timestamp),
+                        Style::default().fg(Color::DarkGray),
+                    );
 
                     let mut spans = vec![status_span, method_span, url_span, time_span];
                     if is_selected {
@@ -255,13 +368,12 @@ pub fn render(f: &mut Frame, app: &mut App) {
                 })
                 .collect();
 
-            let history_list = List::new(history_items)
-                .block(
-                    Block::default()
-                        .title(" ⏳ Run History ")
-                        .borders(Borders::ALL)
-                        .border_style(history_border_style),
-                );
+            let history_list = List::new(history_items).block(
+                Block::default()
+                    .title(" ⏳ Run History ")
+                    .borders(Borders::ALL)
+                    .border_style(history_border_style),
+            );
             f.render_widget(history_list, sidebar_content_area);
         }
     }
@@ -293,10 +405,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
 
                     let url_row_split = Layout::default()
                         .direction(Direction::Horizontal)
-                        .constraints([
-                            Constraint::Length(12),
-                            Constraint::Min(0),
-                        ])
+                        .constraints([Constraint::Length(12), Constraint::Min(0)])
                         .split(url_area);
 
                     let method_badge_area = url_row_split[0];
@@ -326,7 +435,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                     let is_tab_content_focused = app.focus == Focus::RequestTabContent;
                     let tab_content_border_style = get_border_style(is_tab_content_focused);
 
-                    let tab_titles = vec![" [Headers] ", " [Params] ", " [Body] "];
+                    let tab_titles = [" [Headers] ", " [Params] ", " [Body] "];
                     let active_tab_index = match app.request_tab {
                         RequestTab::Headers => 0,
                         RequestTab::Params => 1,
@@ -399,7 +508,10 @@ pub fn render(f: &mut Frame, app: &mut App) {
 
                     app.env_textarea.set_block(
                         Block::default()
-                            .title(format!(" Edit Environment Variables: {} (key=value) ", env_name))
+                            .title(format!(
+                                " Edit Environment Variables: {} (key=value) ",
+                                env_name
+                            ))
                             .borders(Borders::ALL)
                             .border_style(env_border_style),
                     );
@@ -429,10 +541,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
 
             let url_row_split = Layout::default()
                 .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Length(12),
-                    Constraint::Min(0),
-                ])
+                .constraints([Constraint::Length(12), Constraint::Min(0)])
                 .split(url_area);
 
             let method_badge_area = url_row_split[0];
@@ -463,7 +572,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
             let is_tab_content_focused = app.focus == Focus::RequestTabContent;
             let tab_content_border_style = get_border_style(is_tab_content_focused);
 
-            let tab_titles = vec![" [Headers] ", " [Params] ", " [Body] "];
+            let tab_titles = [" [Headers] ", " [Params] ", " [Body] "];
             let active_tab_index = match app.request_tab {
                 RequestTab::Headers => 0,
                 RequestTab::Params => 1,
@@ -539,51 +648,86 @@ pub fn render(f: &mut Frame, app: &mut App) {
 
     let response_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(0),
-        ])
+        .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(response_area);
 
     let resp_meta_area = response_layout[0];
     let resp_body_area = response_layout[1];
 
     // Determine metadata and body source (TUI active state or highlighted HistoryItem)
-    let (status_str, time_str, size_str, body_str) = if app.sidebar_mode == SidebarMode::History && !app.history.is_empty() && app.history_index < app.history.len() {
+    let (status_str, time_str, size_str, body_str) = if app.sidebar_mode == SidebarMode::History
+        && !app.history.is_empty()
+        && app.history_index < app.history.len()
+    {
         let item = &app.history[app.history_index];
         (
-            item.response_status.clone().unwrap_or_else(|| "---".to_string()),
-            item.response_time.clone().unwrap_or_else(|| "---".to_string()),
-            item.response_size.clone().unwrap_or_else(|| "---".to_string()),
+            item.response_status
+                .clone()
+                .unwrap_or_else(|| "---".to_string()),
+            item.response_time
+                .clone()
+                .unwrap_or_else(|| "---".to_string()),
+            item.response_size
+                .clone()
+                .unwrap_or_else(|| "---".to_string()),
             &item.response_content,
         )
     } else {
         (
-            app.response_status.clone().unwrap_or_else(|| "---".to_string()),
-            app.response_time.clone().unwrap_or_else(|| "---".to_string()),
-            app.response_size.clone().unwrap_or_else(|| "---".to_string()),
+            app.response_status
+                .clone()
+                .unwrap_or_else(|| "---".to_string()),
+            app.response_time
+                .clone()
+                .unwrap_or_else(|| "---".to_string()),
+            app.response_size
+                .clone()
+                .unwrap_or_else(|| "---".to_string()),
             &app.response_content,
         )
     };
 
     let status_span = if status_str.starts_with('2') {
-        Span::styled(format!("STATUS: {}  ", status_str), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+        Span::styled(
+            format!("STATUS: {}  ", status_str),
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        )
     } else if status_str != "---" && status_str != "Error" {
-        Span::styled(format!("STATUS: {}  ", status_str), Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
+        Span::styled(
+            format!("STATUS: {}  ", status_str),
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        )
     } else {
-        Span::styled(format!("STATUS: {}  ", status_str), Style::default().fg(Color::DarkGray))
+        Span::styled(
+            format!("STATUS: {}  ", status_str),
+            Style::default().fg(Color::DarkGray),
+        )
     };
 
     let time_span = if time_str != "---" {
-        Span::styled(format!("TIME: {}  ", time_str), Style::default().fg(Color::Yellow))
+        Span::styled(
+            format!("TIME: {}  ", time_str),
+            Style::default().fg(Color::Yellow),
+        )
     } else {
-        Span::styled(format!("TIME: {}  ", time_str), Style::default().fg(Color::DarkGray))
+        Span::styled(
+            format!("TIME: {}  ", time_str),
+            Style::default().fg(Color::DarkGray),
+        )
     };
 
     let size_span = if size_str != "---" {
-        Span::styled(format!("SIZE: {}", size_str), Style::default().fg(Color::Blue))
+        Span::styled(
+            format!("SIZE: {}", size_str),
+            Style::default().fg(Color::Blue),
+        )
     } else {
-        Span::styled(format!("SIZE: {}", size_str), Style::default().fg(Color::DarkGray))
+        Span::styled(
+            format!("SIZE: {}", size_str),
+            Style::default().fg(Color::DarkGray),
+        )
     };
 
     let meta_line = Line::from(vec![status_span, time_span, size_span]);
@@ -604,20 +748,31 @@ pub fn render(f: &mut Frame, app: &mut App) {
     } else {
         let raw_lines = body_str.lines();
         let mut text_lines = Vec::new();
-        
+
         for line in raw_lines {
             let mut spans = Vec::new();
             let trimmed = line.trim_start();
-            
-            if (trimmed.starts_with('"') && trimmed.contains(':')) || trimmed.starts_with('{') || trimmed.starts_with('}') || trimmed.starts_with('[') || trimmed.starts_with(']') {
+
+            if (trimmed.starts_with('"') && trimmed.contains(':'))
+                || trimmed.starts_with('{')
+                || trimmed.starts_with('}')
+                || trimmed.starts_with('[')
+                || trimmed.starts_with(']')
+            {
                 if let Some(colon_pos) = line.find(':') {
                     let key_part = &line[..colon_pos];
                     let val_part = &line[colon_pos..];
-                    
-                    spans.push(Span::styled(key_part, Style::default().fg(Color::LightBlue)));
-                    
+
+                    spans.push(Span::styled(
+                        key_part,
+                        Style::default().fg(Color::LightBlue),
+                    ));
+
                     if val_part.contains("true") || val_part.contains("false") {
-                        spans.push(Span::styled(val_part, Style::default().fg(Color::LightGreen)));
+                        spans.push(Span::styled(
+                            val_part,
+                            Style::default().fg(Color::LightGreen),
+                        ));
                     } else if val_part.chars().any(|c| c.is_numeric()) {
                         spans.push(Span::styled(val_part, Style::default().fg(Color::Yellow)));
                     } else if val_part.contains('"') {
@@ -659,22 +814,40 @@ pub fn render(f: &mut Frame, app: &mut App) {
     let help_text = match app.focus {
         Focus::Sidebar => match app.sidebar_mode {
             SidebarMode::Collections => match selection {
-                SidebarSelection::Request(_) => "➔ Nav: [Up/Down] | Select: [Enter] | Switch Mode: [Ctrl-Y] | Switch Pane: [Tab] | Quit: [Esc]",
-                SidebarSelection::Environment(_) => "➔ Nav: [Up/Down] | Activate: [Enter] | Switch Mode: [Ctrl-Y] | Edit Env: [Tab] | Quit: [Esc]",
+                SidebarSelection::Request(_) => {
+                    "➔ Nav: [Up/Down] | Select: [Enter] | Switch Mode: [Ctrl-Y] | Switch Pane: [Tab] | Quit: [Esc]"
+                }
+                SidebarSelection::Environment(_) => {
+                    "➔ Nav: [Up/Down] | Activate: [Enter] | Switch Mode: [Ctrl-Y] | Edit Env: [Tab] | Quit: [Esc]"
+                }
             },
-            SidebarMode::History => "➔ Nav: [Up/Down] | Restore Request: [Enter] | Switch Mode: [Ctrl-Y] | Switch Pane: [Tab]",
+            SidebarMode::History => {
+                "➔ Nav: [Up/Down] | Restore Request: [Enter] | Switch Mode: [Ctrl-Y] | Switch Pane: [Tab]"
+            }
         },
-        Focus::RequestUrl => "➔ Edit URL | Cycle Method: [Ctrl-M] | Send: [Ctrl-E] | Switch Pane: [Tab]",
+        Focus::RequestUrl => {
+            "➔ Edit URL | Cycle Method: [Ctrl-M] | Send: [Ctrl-E] | Switch Pane: [Tab]"
+        }
         Focus::RequestTabContent => match app.sidebar_mode {
             SidebarMode::Collections => match selection {
                 SidebarSelection::Request(_) => match app.request_tab {
-                    RequestTab::Headers => "➔ Edit Headers (Key: Value) | Switch Tabs: [Ctrl-H/P/B] | Send: [Ctrl-E] | Switch Pane: [Tab]",
-                    RequestTab::Params => "➔ Edit Parameters (key=value) | Switch Tabs: [Ctrl-H/P/B] | Send: [Ctrl-E] | Switch Pane: [Tab]",
-                    RequestTab::Body => "➔ Edit Request Body (JSON) | Switch Tabs: [Ctrl-H/P/B] | Send: [Ctrl-E] | Switch Pane: [Tab]",
+                    RequestTab::Headers => {
+                        "➔ Edit Headers (Key: Value) | Switch Tabs: [Ctrl-H/P/B] | Send: [Ctrl-E] | Switch Pane: [Tab]"
+                    }
+                    RequestTab::Params => {
+                        "➔ Edit Parameters (key=value) | Switch Tabs: [Ctrl-H/P/B] | Send: [Ctrl-E] | Switch Pane: [Tab]"
+                    }
+                    RequestTab::Body => {
+                        "➔ Edit Request Body (JSON) | Switch Tabs: [Ctrl-H/P/B] | Send: [Ctrl-E] | Switch Pane: [Tab]"
+                    }
                 },
-                SidebarSelection::Environment(_) => "➔ Edit Environment (key=value) | Switch Pane: [Tab]",
+                SidebarSelection::Environment(_) => {
+                    "➔ Edit Environment (key=value) | Switch Pane: [Tab]"
+                }
             },
-            SidebarMode::History => "➔ View Request Configuration (History Mode) | Switch Pane: [Tab]",
+            SidebarMode::History => {
+                "➔ View Request Configuration (History Mode) | Switch Pane: [Tab]"
+            }
         },
         Focus::Response => "➔ View Response | Scroll: [Up/Down] or [j/k] | Switch Pane: [Tab]",
     };
@@ -690,10 +863,31 @@ pub fn render(f: &mut Frame, app: &mut App) {
     };
 
     let status_line = Line::from(vec![
-        Span::styled(" RestDeck v0.1.0 ", Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD)),
-        Span::styled(format!(" [{}] ", mode_str), Style::default().bg(Color::LightMagenta).fg(Color::Black).add_modifier(Modifier::BOLD)),
-        Span::styled(format!(" [ENV: {}] ", env_name_str), Style::default().bg(Color::Green).fg(Color::Black).add_modifier(Modifier::BOLD)),
-        Span::styled(format!(" | {}", help_text), Style::default().bg(Color::DarkGray).fg(Color::White)),
+        Span::styled(
+            concat!(" RestDeck v", env!("CARGO_PKG_VERSION"), " "),
+            Style::default()
+                .bg(Color::Cyan)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!(" [{}] ", mode_str),
+            Style::default()
+                .bg(Color::LightMagenta)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!(" [ENV: {}] ", env_name_str),
+            Style::default()
+                .bg(Color::Green)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!(" | {}", help_text),
+            Style::default().bg(Color::DarkGray).fg(Color::White),
+        ),
     ]);
 
     f.render_widget(Paragraph::new(status_line), status_area);

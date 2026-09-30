@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use tui_textarea::TextArea;
-use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Focus {
@@ -67,26 +67,38 @@ pub struct AppConfig {
     pub history: Vec<HistoryItem>,
 }
 
+pub type LoadedConfig = (
+    Vec<ApiRequest>,
+    Vec<Environment>,
+    Option<usize>,
+    Vec<HistoryItem>,
+);
+
 pub struct App<'a> {
     pub collections: Vec<ApiRequest>,
     pub environments: Vec<Environment>,
     pub active_env_index: Option<usize>,
     pub history: Vec<HistoryItem>,
-    
+
+    // Debounce / Persistence tracking
+    pub is_dirty: bool,
+    pub last_edit: Option<std::time::Instant>,
+    pub debounce_duration: std::time::Duration,
+
     pub sidebar_index: usize, // Flat index across requests and environments
     pub history_index: usize, // Index inside the history list
     pub sidebar_mode: SidebarMode,
     pub focus: Focus,
     pub request_tab: RequestTab,
     pub method_index: usize,
-    
+
     // Text inputs
     pub url_textarea: TextArea<'a>,
     pub headers_textarea: TextArea<'a>,
     pub params_textarea: TextArea<'a>,
     pub body_textarea: TextArea<'a>,
     pub env_textarea: TextArea<'a>,
-    
+
     // HTTP Response state
     pub response_content: String,
     pub response_status: Option<String>,
@@ -160,14 +172,15 @@ fn get_config_path() -> std::path::PathBuf {
     if cfg!(test) {
         let thread_name = std::thread::current().name().unwrap_or("test").to_string();
         let sanitized_name = thread_name.replace("::", "_");
-        return std::path::PathBuf::from(format!("restdeck_test_{}.json", sanitized_name));
+        let pid = std::process::id();
+        return std::env::temp_dir().join(format!("restdeck_test_{}_{}.json", pid, sanitized_name));
     }
-    
+
     let local_path = std::path::PathBuf::from("restdeck.json");
     if local_path.exists() {
         return local_path;
     }
-    
+
     if let Ok(home) = std::env::var("HOME") {
         let mut path = std::path::PathBuf::from(home);
         path.push(".config");
@@ -181,15 +194,24 @@ fn get_config_path() -> std::path::PathBuf {
 
 impl<'a> App<'a> {
     pub fn new() -> Self {
-        let (collections, environments, active_env_index, history) = Self::load_config().unwrap_or_else(|| {
-            (default_requests(), default_environments(), Some(0), Vec::new())
-        });
+        let (collections, environments, active_env_index, history) = Self::load_config()
+            .unwrap_or_else(|| {
+                (
+                    default_requests(),
+                    default_environments(),
+                    Some(0),
+                    Vec::new(),
+                )
+            });
 
         let mut app = Self {
             collections,
             environments,
             active_env_index,
             history,
+            is_dirty: false,
+            last_edit: None,
+            debounce_duration: std::time::Duration::from_millis(500),
             sidebar_index: 0,
             history_index: 0,
             sidebar_mode: SidebarMode::Collections,
@@ -213,24 +235,27 @@ impl<'a> App<'a> {
         app
     }
 
-    pub fn load_config() -> Option<(Vec<ApiRequest>, Vec<Environment>, Option<usize>, Vec<HistoryItem>)> {
+    pub fn load_config() -> Option<LoadedConfig> {
         let path = get_config_path();
-        if path.exists() {
-            if let Ok(data) = std::fs::read_to_string(&path) {
-                if let Ok(config) = serde_json::from_str::<AppConfig>(&data) {
-                    return Some((config.collections, config.environments, config.active_env_index, config.history));
-                }
-                if let Ok(collections) = serde_json::from_str::<Vec<ApiRequest>>(&data) {
-                    return Some((collections, default_environments(), Some(0), Vec::new()));
-                }
+        if let Ok(data) = std::fs::read_to_string(&path) {
+            if let Ok(config) = serde_json::from_str::<AppConfig>(&data) {
+                return Some((
+                    config.collections,
+                    config.environments,
+                    config.active_env_index,
+                    config.history,
+                ));
+            }
+            if let Ok(collections) = serde_json::from_str::<Vec<ApiRequest>>(&data) {
+                return Some((collections, default_environments(), Some(0), Vec::new()));
             }
         }
         None
     }
 
-    pub fn save_config(&self) {
+    pub fn save_config(&mut self) {
         let path = get_config_path();
-        
+
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -244,6 +269,42 @@ impl<'a> App<'a> {
 
         if let Ok(json_str) = serde_json::to_string_pretty(&config) {
             let _ = std::fs::write(&path, json_str);
+            self.is_dirty = false;
+            self.last_edit = None;
+        }
+    }
+
+    pub fn mark_dirty(&mut self) {
+        self.is_dirty = true;
+        self.last_edit = Some(std::time::Instant::now());
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.is_dirty
+    }
+
+    pub fn should_save(&self) -> bool {
+        if !self.is_dirty() {
+            return false;
+        }
+        match self.last_edit {
+            Some(last) => last.elapsed() >= self.debounce_duration,
+            None => true,
+        }
+    }
+
+    pub fn save_if_due(&mut self) -> bool {
+        if self.should_save() {
+            self.save_config();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn flush_save(&mut self) {
+        if self.is_dirty() {
+            self.save_config();
         }
     }
 
@@ -264,11 +325,15 @@ impl<'a> App<'a> {
         match self.get_sidebar_selection() {
             SidebarSelection::Request(idx) => {
                 let req = &self.collections[idx];
-                
+
                 // Load URL
                 self.url_textarea = TextArea::new(vec![req.url.clone()]);
-                self.url_textarea.set_cursor_line_style(ratatui::style::Style::default());
-                self.url_textarea.set_cursor_style(ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::REVERSED));
+                self.url_textarea
+                    .set_cursor_line_style(ratatui::style::Style::default());
+                self.url_textarea.set_cursor_style(
+                    ratatui::style::Style::default()
+                        .add_modifier(ratatui::style::Modifier::REVERSED),
+                );
 
                 // Load Method
                 if let Some(pos) = HTTP_METHODS.iter().position(|&m| m == req.method) {
@@ -278,30 +343,35 @@ impl<'a> App<'a> {
                 }
 
                 // Load Headers
-                let headers_lines: Vec<String> = req.headers.lines().map(|s| s.to_string()).collect();
+                let headers_lines: Vec<String> =
+                    req.headers.lines().map(|s| s.to_string()).collect();
                 self.headers_textarea = TextArea::new(headers_lines);
-                self.headers_textarea.set_cursor_line_style(ratatui::style::Style::default());
+                self.headers_textarea
+                    .set_cursor_line_style(ratatui::style::Style::default());
 
                 // Load Params
                 let params_lines: Vec<String> = req.params.lines().map(|s| s.to_string()).collect();
                 self.params_textarea = TextArea::new(params_lines);
-                self.params_textarea.set_cursor_line_style(ratatui::style::Style::default());
+                self.params_textarea
+                    .set_cursor_line_style(ratatui::style::Style::default());
 
                 // Load Body
                 let body_lines: Vec<String> = req.body.lines().map(|s| s.to_string()).collect();
                 self.body_textarea = TextArea::new(body_lines);
-                self.body_textarea.set_cursor_line_style(ratatui::style::Style::default());
+                self.body_textarea
+                    .set_cursor_line_style(ratatui::style::Style::default());
             }
             SidebarSelection::Environment(idx) => {
                 let env = &self.environments[idx];
                 let env_lines: Vec<String> = env.variables.lines().map(|s| s.to_string()).collect();
                 self.env_textarea = TextArea::new(env_lines);
-                self.env_textarea.set_cursor_line_style(ratatui::style::Style::default());
+                self.env_textarea
+                    .set_cursor_line_style(ratatui::style::Style::default());
             }
         }
     }
 
-    pub fn save_current_request(&mut self) {
+    pub fn sync_current_request(&mut self) {
         // Do not overwrite collections with editor contents if we are browsing history
         if self.sidebar_mode == SidebarMode::History {
             return;
@@ -334,6 +404,11 @@ impl<'a> App<'a> {
             }
         }
 
+        self.mark_dirty();
+    }
+
+    pub fn save_current_request(&mut self) {
+        self.sync_current_request();
         self.save_config();
     }
 
@@ -350,25 +425,25 @@ impl<'a> App<'a> {
 
         let req = &self.collections[idx];
         let mut interpolated = req.clone();
-        
+
         let mut vars = Vec::new();
-        if let Some(env_idx) = self.active_env_index {
-            if env_idx < self.environments.len() {
-                let env = &self.environments[env_idx];
-                for line in env.variables.lines() {
-                    let line = line.trim();
-                    if line.is_empty() {
-                        continue;
-                    }
-                    if let Some(pos) = line.find('=') {
-                        let key = line[..pos].trim().to_string();
-                        let val = line[pos + 1..].trim().to_string();
-                        vars.push((key, val));
-                    }
+        if let Some(env) = self
+            .active_env_index
+            .and_then(|idx| self.environments.get(idx))
+        {
+            for line in env.variables.lines() {
+                let line = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
+                if let Some(pos) = line.find('=') {
+                    let key = line[..pos].trim().to_string();
+                    let val = line[pos + 1..].trim().to_string();
+                    vars.push((key, val));
                 }
             }
         }
-        
+
         fn replace_all(mut text: String, vars: &[(String, String)]) -> String {
             for (key, val) in vars {
                 let placeholder = format!("{{{{{}}}}}", key);
@@ -376,15 +451,16 @@ impl<'a> App<'a> {
             }
             text
         }
-        
+
         interpolated.url = replace_all(interpolated.url, &vars);
         interpolated.headers = replace_all(interpolated.headers, &vars);
         interpolated.params = replace_all(interpolated.params, &vars);
         interpolated.body = replace_all(interpolated.body, &vars);
-        
+
         interpolated
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn add_history_item(
         &mut self,
         url: String,
@@ -397,15 +473,16 @@ impl<'a> App<'a> {
         size: Option<String>,
         response_content: String,
     ) {
-        let timestamp = if let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-            let secs = now.as_secs();
-            let hours = (secs / 3600) % 24;
-            let minutes = (secs / 60) % 60;
-            let seconds = secs % 60;
-            format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
-        } else {
-            "00:00:00".to_string()
-        };
+        let timestamp =
+            if let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+                let secs = now.as_secs();
+                let hours = (secs / 3600) % 24;
+                let minutes = (secs / 60) % 60;
+                let seconds = secs % 60;
+                format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+            } else {
+                "00:00:00".to_string()
+            };
 
         let item = HistoryItem {
             timestamp,
@@ -436,8 +513,11 @@ impl<'a> App<'a> {
         let item = &self.history[self.history_index];
 
         self.url_textarea = TextArea::new(vec![item.url.clone()]);
-        self.url_textarea.set_cursor_line_style(ratatui::style::Style::default());
-        self.url_textarea.set_cursor_style(ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::REVERSED));
+        self.url_textarea
+            .set_cursor_line_style(ratatui::style::Style::default());
+        self.url_textarea.set_cursor_style(
+            ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::REVERSED),
+        );
 
         if let Some(pos) = HTTP_METHODS.iter().position(|&m| m == item.method) {
             self.method_index = pos;
@@ -447,15 +527,18 @@ impl<'a> App<'a> {
 
         let headers_lines: Vec<String> = item.headers.lines().map(|s| s.to_string()).collect();
         self.headers_textarea = TextArea::new(headers_lines);
-        self.headers_textarea.set_cursor_line_style(ratatui::style::Style::default());
+        self.headers_textarea
+            .set_cursor_line_style(ratatui::style::Style::default());
 
         let params_lines: Vec<String> = item.params.lines().map(|s| s.to_string()).collect();
         self.params_textarea = TextArea::new(params_lines);
-        self.params_textarea.set_cursor_line_style(ratatui::style::Style::default());
+        self.params_textarea
+            .set_cursor_line_style(ratatui::style::Style::default());
 
         let body_lines: Vec<String> = item.body.lines().map(|s| s.to_string()).collect();
         self.body_textarea = TextArea::new(body_lines);
-        self.body_textarea.set_cursor_line_style(ratatui::style::Style::default());
+        self.body_textarea
+            .set_cursor_line_style(ratatui::style::Style::default());
 
         // Restore views
         self.focus = Focus::RequestUrl;
@@ -465,11 +548,11 @@ impl<'a> App<'a> {
 
     pub fn cycle_method(&mut self) {
         self.method_index = (self.method_index + 1) % HTTP_METHODS.len();
-        self.save_current_request();
+        self.sync_current_request();
     }
 
     pub fn cycle_focus(&mut self, forward: bool) {
-        self.save_current_request();
+        self.sync_current_request();
         self.focus = match (self.focus, forward) {
             (Focus::Sidebar, true) => {
                 match self.sidebar_mode {
@@ -486,18 +569,14 @@ impl<'a> App<'a> {
 
             (Focus::Sidebar, false) => Focus::Response,
             (Focus::RequestUrl, false) => Focus::Sidebar,
-            (Focus::RequestTabContent, false) => {
-                match self.get_sidebar_selection() {
-                    SidebarSelection::Request(_) => Focus::RequestUrl,
-                    SidebarSelection::Environment(_) => Focus::Sidebar,
-                }
-            }
-            (Focus::Response, false) => {
-                match self.sidebar_mode {
-                    SidebarMode::Collections => Focus::RequestTabContent,
-                    SidebarMode::History => Focus::Sidebar,
-                }
-            }
+            (Focus::RequestTabContent, false) => match self.get_sidebar_selection() {
+                SidebarSelection::Request(_) => Focus::RequestUrl,
+                SidebarSelection::Environment(_) => Focus::Sidebar,
+            },
+            (Focus::Response, false) => match self.sidebar_mode {
+                SidebarMode::Collections => Focus::RequestTabContent,
+                SidebarMode::History => Focus::Sidebar,
+            },
         };
     }
 }
@@ -528,7 +607,7 @@ mod tests {
         cleanup_test_file();
         let mut app = App::new();
         assert_eq!(app.focus, Focus::Sidebar);
-        
+
         app.cycle_focus(true);
         assert_eq!(app.focus, Focus::RequestUrl);
 
@@ -543,12 +622,13 @@ mod tests {
     #[test]
     fn test_interpolation() {
         let mut app = App::new();
-        app.environments[0].variables = "baseUrl=https://api.restdeck.com\napiKey=foo-token".to_string();
+        app.environments[0].variables =
+            "baseUrl=https://api.restdeck.com\napiKey=foo-token".to_string();
         app.active_env_index = Some(0);
-        
+
         app.collections[0].url = "{{baseUrl}}/v1/users".to_string();
         app.collections[0].headers = "Authorization: Bearer {{apiKey}}".to_string();
-        
+
         let interpolated = app.get_interpolated_request();
         assert_eq!(interpolated.url, "https://api.restdeck.com/v1/users");
         assert_eq!(interpolated.headers, "Authorization: Bearer foo-token");
@@ -559,7 +639,7 @@ mod tests {
         cleanup_test_file();
         let mut app = App::new();
         assert_eq!(app.method_index, 0); // GET
-        
+
         app.cycle_method();
         assert_eq!(app.method_index, 1); // POST
         assert_eq!(app.collections[0].method, "POST");
@@ -569,26 +649,26 @@ mod tests {
     #[test]
     fn test_save_load_config() {
         cleanup_test_file();
-        
+
         let mut app = App::new();
         app.collections[0].url = "https://example.com/config-test".to_string();
         app.environments[0].name = "Staging".to_string();
         app.save_config();
-        
+
         let (collections, envs, _, _) = App::load_config().unwrap();
         assert_eq!(collections[0].url, "https://example.com/config-test");
         assert_eq!(envs[0].name, "Staging");
-        
+
         cleanup_test_file();
     }
 
     #[test]
     fn test_history_capping() {
         cleanup_test_file();
-        
+
         let mut app = App::new();
         assert_eq!(app.history.len(), 0);
-        
+
         for i in 0..60 {
             app.add_history_item(
                 format!("https://example.com/{}", i),
@@ -596,14 +676,82 @@ mod tests {
                 "".to_string(),
                 "".to_string(),
                 "".to_string(),
-                None, None, None,
+                None,
+                None,
+                None,
                 "".to_string(),
             );
         }
-        
+
         assert_eq!(app.history.len(), 50); // Capped at 50
         assert_eq!(app.history[0].url, "https://example.com/59"); // Most recent is first
-        
+
+        cleanup_test_file();
+    }
+
+    #[test]
+    fn test_debounce_logic() {
+        cleanup_test_file();
+        let mut app = App::new();
+        assert!(!app.is_dirty());
+        assert!(!app.should_save());
+
+        // Mark dirty
+        app.mark_dirty();
+        assert!(app.is_dirty());
+        // Immediately after edit, should_save should be false because debounce duration (500ms) has not elapsed
+        assert!(!app.should_save());
+        assert!(!app.save_if_due());
+
+        // Simulate 600ms elapsed since last edit
+        app.last_edit = Some(std::time::Instant::now() - std::time::Duration::from_millis(600));
+        assert!(app.should_save());
+
+        // save_if_due should save and reset dirty flag
+        assert!(app.save_if_due());
+        assert!(!app.is_dirty());
+        assert!(!app.should_save());
+        assert!(!app.save_if_due());
+
+        cleanup_test_file();
+    }
+
+    #[test]
+    fn test_flush_save() {
+        cleanup_test_file();
+        let mut app = App::new();
+        app.collections[0].url = "https://example.com/debounced-test".to_string();
+        app.mark_dirty();
+        assert!(app.is_dirty());
+
+        // flush_save should immediately save without waiting for debounce duration
+        app.flush_save();
+        assert!(!app.is_dirty());
+
+        let (collections, _, _, _) = App::load_config().unwrap();
+        assert_eq!(collections[0].url, "https://example.com/debounced-test");
+
+        cleanup_test_file();
+    }
+
+    #[test]
+    fn test_no_config_in_working_directory() {
+        cleanup_test_file();
+        let mut app = App::new();
+        app.save_config();
+
+        // Ensure no restdeck_test file was created in current working directory
+        let local_matches: Vec<_> = std::fs::read_dir(".")
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().starts_with("restdeck_test"))
+            .collect();
+        assert!(
+            local_matches.is_empty(),
+            "Temp test files should not be written to working directory: {:?}",
+            local_matches
+        );
+
         cleanup_test_file();
     }
 }
