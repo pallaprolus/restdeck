@@ -809,7 +809,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
             }
         },
         Focus::RequestUrl => {
-            "➔ Edit URL | Cycle Method: [Ctrl-M] | Send: [Ctrl-E] | Switch Pane: [Tab]"
+            "➔ Edit URL | Cycle Method: [Ctrl-T] | Send: [Ctrl-E] | Switch Pane: [Tab]"
         }
         Focus::RequestTabContent => match app.sidebar_mode {
             SidebarMode::Collections => match selection {

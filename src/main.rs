@@ -195,7 +195,7 @@ fn handle_key_event(
                 app.request_tab = RequestTab::Body;
                 return false;
             }
-            KeyCode::Char('m') => {
+            KeyCode::Char('m') | KeyCode::Char('t') => {
                 app.cycle_method();
                 return false;
             }
