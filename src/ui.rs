@@ -878,15 +878,12 @@ pub fn render(f: &mut Frame, app: &mut App) {
 
 pub(crate) fn shorten_history_url(url: &str) -> String {
     if url.chars().count() > 15 {
-        let path_part = url
-            .find("//")
-            .map(|pos| &url[pos + 2..])
-            .unwrap_or(url);
+        let path_part = url.find("//").map(|pos| &url[pos + 2..]).unwrap_or(url);
         let sub_path = path_part
             .find('/')
             .map(|pos| &path_part[pos..])
             .unwrap_or(path_part);
-        
+
         let chars_count = sub_path.chars().count();
         if chars_count > 12 {
             let start_idx = chars_count.saturating_sub(10);
@@ -907,7 +904,13 @@ mod tests {
     #[test]
     fn test_shorten_history_url() {
         assert_eq!(shorten_history_url("http://ex.com"), "http://ex.com");
-        assert_eq!(shorten_history_url("https://example.com/api/v1/users"), "..i/v1/users");
-        assert_eq!(shorten_history_url("https://example.com/ünïcödé/пример/路径"), "../пример/路径");
+        assert_eq!(
+            shorten_history_url("https://example.com/api/v1/users"),
+            "..i/v1/users"
+        );
+        assert_eq!(
+            shorten_history_url("https://example.com/ünïcödé/пример/路径"),
+            "../пример/路径"
+        );
     }
 }

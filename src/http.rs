@@ -275,7 +275,10 @@ key_no_value
         assert_eq!(params.len(), 4);
         assert_eq!(params[0], ("key1".to_string(), "value1".to_string()));
         assert_eq!(params[1], ("key2".to_string(), "value2".to_string()));
-        assert_eq!(params[2], ("key3".to_string(), "value=with=equals".to_string()));
+        assert_eq!(
+            params[2],
+            ("key3".to_string(), "value=with=equals".to_string())
+        );
         assert_eq!(params[3], ("key_no_value".to_string(), "".to_string()));
     }
 }

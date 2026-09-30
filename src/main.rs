@@ -167,8 +167,16 @@ fn handle_key_event(
     if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('e') {
         app.save_current_request();
         let raw_req = match app.get_sidebar_selection() {
-            SidebarSelection::Request(idx) => app.collections.get(idx).cloned().unwrap_or_else(|| crate::app::default_requests()[0].clone()),
-            _ => app.collections.first().cloned().unwrap_or_else(|| crate::app::default_requests()[0].clone()),
+            SidebarSelection::Request(idx) => app
+                .collections
+                .get(idx)
+                .cloned()
+                .unwrap_or_else(|| crate::app::default_requests()[0].clone()),
+            _ => app
+                .collections
+                .first()
+                .cloned()
+                .unwrap_or_else(|| crate::app::default_requests()[0].clone()),
         };
 
         let req = app.get_interpolated_request();
@@ -237,7 +245,7 @@ fn handle_key_event(
                             app.save_config();
                         }
                     }
-                },
+                }
                 _ => {}
             },
             SidebarMode::History => match key.code {
@@ -289,8 +297,9 @@ fn handle_key_event(
         },
         Focus::RequestUrl => {
             let is_newline = key.code == KeyCode::Enter
-                || (key.modifiers == KeyModifiers::CONTROL && (key.code == KeyCode::Char('j') || key.code == KeyCode::Char('m')));
-            
+                || (key.modifiers == KeyModifiers::CONTROL
+                    && (key.code == KeyCode::Char('j') || key.code == KeyCode::Char('m')));
+
             if !is_newline {
                 app.url_textarea.input(key);
                 app.sync_current_request();
