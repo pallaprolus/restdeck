@@ -1,8 +1,9 @@
 # 🎛️ RestDeck
+[![crates.io](https://img.shields.io/crates/v/restdeck.svg)](https://crates.io/crates/restdeck)
 
 RestDeck is a lightweight, keyboard-driven **REST API client TUI** (Terminal User Interface) built in Rust using **Ratatui** and **Tokio**. It brings the features of Postman and Insomnia directly into your terminal, giving you near-instant startup, negligible memory overhead, and fluid visual feedback.
 
-![RestDeck TUI Mockup](assets/mockup.png)
+![RestDeck TUI Mockup](https://raw.githubusercontent.com/pallaprolus/restdeck/master/assets/mockup.png)
 
 ---
 
@@ -23,10 +24,11 @@ RestDeck is a lightweight, keyboard-driven **REST API client TUI** (Terminal Use
 | :--- | :--- |
 | `Tab` / `Shift-Tab` | Cycle focus between panels (Sidebar -> URL -> Config Tabs -> Response) |
 | `Ctrl-E` | Trigger/Send the HTTP request |
-| `Ctrl-M` | Cycle HTTP Methods (`GET` ➔ `POST` ➔ `PUT` ➔ `DELETE` ➔ `PATCH`) |
+| `Ctrl-T` | Cycle HTTP Methods (`GET` ➔ `POST` ➔ `PUT` ➔ `DELETE` ➔ `PATCH`) (Note: `Ctrl-M` also works in terminals with keyboard enhancement) |
 | `Ctrl-H` / `Ctrl-P` / `Ctrl-B` | Switch request config tab to **Headers**, **Params**, or **Body** |
+| `Ctrl-Y` | Toggle between Collections and History sidebars |
 | `Up` / `Down` (or `j`/`k`) | Navigate Sidebar selections or scroll Response body |
-| `Enter` | (In Sidebar) Navigate to URL input for Requests, or toggle/activate Environments |
+| `Enter` | (In Sidebar) Navigate to URL input for Requests, toggle/activate Environments, or restore a History item to Collections |
 | `Esc` / `Ctrl-C` | Exit RestDeck |
 
 ---
@@ -49,7 +51,7 @@ To toggle/activate an environment, highlight it in the sidebar and press `Enter`
 ## 💾 State Persistence
 
 RestDeck saves configuration to disk in JSON format automatically. It resolves paths in the following priority:
-1.  **Local Workspace Config (`./restdeck.json`):** Checks your current working directory first. If found, it reads/writes locally (great for committing collections to git repositories).
+1.  **Local Workspace Config (`./restdeck.json`):** Checks your current working directory first. If found, it reads/writes locally (great for committing collections to git repositories). The local `./restdeck.json` is used only if it already exists (create it, e.g. `touch restdeck.json`). Note an empty file may not parse — if empty files fail to load, copy the global file instead or write `{}` inside.
 2.  **Global Config (`~/.config/restdeck/collections.json`):** Fallback path in your home directory for personal workspace collections and private secrets.
 
 ---
